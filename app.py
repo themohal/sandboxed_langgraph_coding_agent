@@ -1,6 +1,6 @@
 import os
 import streamlit as st
-# from dotenv import load_dotenv
+from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_daytona_data_analysis import DaytonaDataAnalysisTool
 from langchain_core.messages import ToolMessage, SystemMessage, AIMessage
@@ -8,8 +8,8 @@ from langgraph.graph import StateGraph, START, MessagesState
 from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import MemorySaver
 
-# # 1. Load Environmental Variables
-# load_dotenv()
+# 1. Load Environmental Variables
+load_dotenv()
 
 # 2. Page Configuration & Custom CSS Injection
 st.set_page_config(

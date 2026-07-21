@@ -8,19 +8,103 @@ from langgraph.graph import StateGraph, START, MessagesState
 from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import MemorySaver
 
-# 1. Load Environmental Variables from .env File
+# 1. Load Environmental Variables
 load_dotenv()
 
-# 2. Page Configuration
-st.set_page_config(page_title="Agentic Daytona Sandbox", page_icon="🤖", layout="wide")
-st.title("🤖 LangGraph Code Agent with Daytona Sandbox")
+# 2. Page Configuration & Custom CSS Injection
+st.set_page_config(
+    page_title="Daytona AI Sandbox Studio",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# 3. Check for Required Environment Variables
-if not os.environ.get("OPENAI_API_KEY") or not os.environ.get("DAYTONA_API_KEY"):
-    st.error("❌ Missing environment variables! Please ensure both `OPENAI_API_KEY` and `DAYTONA_API_KEY` are populated inside your local `.env` file.")
-    st.stop()
+# Custom Styling to eliminate "dry" default look
+st.markdown("""
+<style>
+    /* Gradient Banner Header */
+    .header-container {
+        background: linear-gradient(135deg, #1e1e2f 0%, #0f172a 100%);
+        padding: 1.8rem 2rem;
+        border-radius: 12px;
+        color: white;
+        margin-bottom: 1.5rem;
+        border: 1px solid rgba(255,255,255,0.08);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    }
+    
+    /* Action Approval Card */
+    .approval-card {
+        background-color: rgba(240, 246, 255, 0.5);
+        border: 1px solid #cbd5e1;
+        border-left: 5px solid #2563eb;
+        padding: 1.25rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+    }
+    
+    /* Sidebar Accent Badges */
+    .status-badge {
+        display: inline-block;
+        padding: 0.25rem 0.6rem;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    .status-online { background-color: #dcfce7; color: #15803d; }
+    .status-offline { background-color: #fee2e2; color: #b91c1c; }
+</style>
+""", unsafe_allow_html=True)
 
-# 4. Initialize Graph State and Build Core Workspace Logic Securely
+# 3. Sidebar Setup
+with st.sidebar:
+    st.image("https://raw.githubusercontent.com/daytonaio/daytona/main/assets/daytona-logo.png", width=180)
+    st.title("Control Panel")
+    st.caption("Agentic Execution & Environment Manager")
+    st.divider()
+
+    # Environment Check
+    openai_key = os.environ.get("OPENAI_API_KEY")
+    daytona_key = os.environ.get("DAYTONA_API_KEY")
+    
+    st.subheader("🔑 Environment Status")
+    col_a, col_b = st.columns(2)
+    with col_a:
+        if openai_key:
+            st.markdown('<span class="status-badge status-online">✓ OpenAI</span>', unsafe_allow_html=True)
+        else:
+            st.markdown('<span class="status-badge status-offline">✗ OpenAI</span>', unsafe_allow_html=True)
+    with col_b:
+        if daytona_key:
+            st.markdown('<span class="status-badge status-online">✓ Daytona</span>', unsafe_allow_html=True)
+        else:
+            st.markdown('<span class="status-badge status-offline">✗ Daytona</span>', unsafe_allow_html=True)
+
+    if not openai_key or not daytona_key:
+        st.error("Missing required API keys inside your local `.env` file.")
+        st.stop()
+        
+    st.divider()
+    st.subheader("⚙️ Agent Settings")
+    st.text_input("Active Model", value="gpt-4o", disabled=True)
+    
+    if st.button("🧹 Clear Chat & Reset Session", use_container_width=True):
+        st.session_state.graph_messages = []
+        if "graph_app" in st.session_state:
+            del st.session_state["graph_app"]
+        st.rerun()
+
+# 4. Header Section
+st.markdown("""
+<div class="header-container">
+    <h2 style="margin: 0; padding: 0; color: #ffffff;">⚡ Daytona AI Code Studio</h2>
+    <p style="margin: 0.4rem 0 0 0; opacity: 0.8; font-size: 0.95rem;">
+        An autonomous LangGraph agent operating safely inside a isolated Daytona sandbox environment with Human-In-The-Loop approval.
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
+# 5. Initialize Graph State and Build Logic
 if "graph_app" not in st.session_state:
     st.session_state.sandbox_id = "streamlit_shared_sandbox_session"
     
@@ -32,9 +116,7 @@ if "graph_app" not in st.session_state:
         st.error(
             f"🚨 **Daytona Initialization Failed!**\n\n"
             f"**Error Details:** {str(e)}\n\n"
-            f"👉 **How to Fix:** Your cloud account has hit its storage limit. Please visit "
-            f"[https://daytona.io](https://daytona.io) to delete or archive old, "
-            f"unused sandbox sessions, then refresh this browser tab."
+            f"👉 **How to Fix:** Visit [https://daytona.io](https://daytona.io) to clean up unused sandboxes and refresh."
         )
         st.stop()
 
@@ -45,10 +127,9 @@ if "graph_app" not in st.session_state:
         def call_model(state: MessagesState):
             system_instruction = SystemMessage(
                 content=(
-                    "You are an autonomous software agent operating inside a Daytona sandbox container. "
-                    "If a tool execution returns an error or traceback, your absolute priority is to inspect "
-                    "the exception, fix the code immediately, and issue a NEW tool call with the corrected script. "
-                    "Do not just explain the error in text format. You must rewrite the code and execute it until it succeeds."
+                    "You are an autonomous software engineer operating inside a Daytona sandbox container. "
+                    "If a tool execution returns an error, inspect the exception, fix the code immediately, "
+                    "and issue a NEW tool call with the corrected script until execution succeeds."
                 )
             )
             messages_with_system = [system_instruction] + state["messages"]
@@ -74,65 +155,96 @@ if "graph_app" not in st.session_state:
         )
         st.session_state.config = {"configurable": {"thread_id": "streamlit_session"}}
 
-# Initialize graph historical message state track list if not present
+# 6. Initialize Chat Memory
 if "graph_messages" not in st.session_state:
     st.session_state.graph_messages = []
 
-# 5. Render Conversation History UI Components
-# FIX: Map state list histories directly to capture paired execution code strings and terminal logs
+# 7. Render Onboarding Empty State if Conversation is Blank
+if not st.session_state.graph_messages:
+    st.markdown("### 👋 Welcome! How can the agent help you today?")
+    st.caption("Select a sample scenario below or type your request in the chat input.")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        with st.container(border=True):
+            st.markdown("📊 **Data Analysis**")
+            st.write("Generate synthetic sales data and plot a line chart using Pandas & Seaborn.")
+            if st.button("Run Example 1", key="ex1", use_container_width=True):
+                st.session_state.pending_prompt = "Generate synthetic monthly sales data for 2025, plot a chart using Seaborn, and save it as an image."
+                st.rerun()
+
+    with col2:
+        with st.container(border=True):
+            st.markdown("⚡ **Algorithm Execution**")
+            st.write("Write and benchmark a Python script that calculates Fibonacci numbers.")
+            if st.button("Run Example 2", key="ex2", use_container_width=True):
+                st.session_state.pending_prompt = "Write a Python script comparing recursive vs dynamic programming Fibonacci execution speeds."
+                st.rerun()
+
+    with col3:
+        with st.container(border=True):
+            st.markdown("🌐 **System Diagnostics**")
+            st.write("Inspect OS properties, CPU count, memory usage, and installed packages.")
+            if st.button("Run Example 3", key="ex3", use_container_width=True):
+                st.session_state.pending_prompt = "Inspect the system environment: display Python version, CPU core count, available memory, and disk space."
+                st.rerun()
+
+    st.divider()
+
+# 8. Render Existing Chat Messages
 for idx, msg in enumerate(st.session_state.graph_messages):
     if msg.type == "human":
-        with st.chat_message("user"):
+        with st.chat_message("user", avatar="👤"):
             st.markdown(msg.content)
             
     elif msg.type == "ai":
-        # Render standard text reasoning from the assistant if it exists
         if msg.content:
-            with st.chat_message("assistant"):
+            with st.chat_message("assistant", avatar="🤖"):
                 st.markdown(msg.content)
                 
-        # If this AI message triggered code execution, render it as an expanding block
         if msg.tool_calls:
             first_call = msg.tool_calls[0]
             code_run = first_call["args"].get("data_analysis_python_code", "# Code block unavailable")
-            with st.chat_message("assistant"):
-                with st.expander("💻 Review Code Executed Inside Daytona", expanded=False):
+            with st.chat_message("assistant", avatar="🤖"):
+                with st.expander("🛠️ Proposed Daytona Execution Script", expanded=False):
                     st.code(code_run, language="python")
                     
     elif msg.type == "tool":
-        # Find and present the output logs right below the expanding code card block
-        with st.chat_message("assistant"):
+        with st.chat_message("assistant", avatar="⚙️"):
             if "Error" in msg.content or "Traceback" in msg.content:
-                st.error(f"❌ **Daytona Sandbox Run Error:**\n```python\n{msg.content}\n```")
+                st.error(f"❌ **Execution Failed:**\n```python\n{msg.content}\n```")
             else:
-                st.success(f"💻 **Daytona Sandbox Console Output:**\n```\n{msg.content}\n```")
+                st.success(f"✅ **Execution Succeeded:**\n```\n{msg.content}\n```")
 
-# 6. Core Agent Stream Handler
+# 9. Core Stream Runner
 def run_agent_stream(initial_input=None):
-    """Streams graph updates and syncs the output back to the Streamlit UI."""
     app = st.session_state.graph_app
     config = st.session_state.config
-    
     stream_generator = app.stream(initial_input, config, stream_mode="values")
     
     for chunk in stream_generator:
-        # Save structural graph historical message data types to sync memory state bindings
         st.session_state.graph_messages = chunk["messages"]
 
-# 7. Capture New User Input Prompt
-if prompt := st.chat_input("Ask the agent to code or analyze data..."):
-    with st.chat_message("user"):
-        st.markdown(prompt)
+# 10. Process Input Prompts (from input bar or quickstart cards)
+active_prompt = st.chat_input("Ask the agent to write code, solve problems, or analyze data...")
+
+if "pending_prompt" in st.session_state and st.session_state.pending_prompt:
+    active_prompt = st.session_state.pending_prompt
+    del st.session_state["pending_prompt"]
+
+if active_prompt:
+    with st.chat_message("user", avatar="👤"):
+        st.markdown(active_prompt)
     
-    with st.chat_message("assistant"):
-        with st.spinner("Agent is planning workflow..."):
-            run_agent_stream({"messages": [("user", prompt)]})
+    with st.chat_message("assistant", avatar="🤖"):
+        with st.spinner("Agent is reasoning and writing code..."):
+            run_agent_stream({"messages": [("user", active_prompt)]})
             st.rerun()
 
-# 8. Self-Contained Fragment Interactive Panel Wrapper
+# 11. Interactive Control Panel Wrapper
 @st.fragment
 def render_interaction_controls():
-    """Hides execution and feedback state-flows inside an isolated layout frame."""
     current_state = st.session_state.graph_app.get_state(st.session_state.config)
     
     if current_state.next and "tools" in current_state.next:
@@ -141,7 +253,7 @@ def render_interaction_controls():
         
         if pending_tool_calls and len(pending_tool_calls) > 0:
             first_call = pending_tool_calls[0]
-            proposed_code = first_call["args"].get("data_analysis_python_code", "# No code argument found")
+            proposed_code = first_call["args"].get("data_analysis_python_code", "# No code found")
             tool_call_id = first_call.get("id")
         else:
             return
@@ -149,42 +261,48 @@ def render_interaction_controls():
         panel_area = st.empty()
         
         with panel_area.container():
-            st.info("⚠️ **Human Approval Required**: The agent is attempting to execute code inside Daytona.")
+            st.markdown('<div class="approval-card">', unsafe_allow_html=True)
+            st.subheader("🛡️ Human Control Gate: Code Execution Requested")
+            st.markdown("The agent generated the following script and requires your authorization to run it inside the Daytona container:")
+            
             st.code(proposed_code, language="python")
             
-            col1, col2 = col1, col2 = st.columns(2)
+            col1, col2 = st.columns([1, 1])
             with col1:
-                if st.button("✅ Approve & Run Code", type="primary", use_container_width=True):
-                    panel_area.info("⏳ Running approved script inside Daytona sandbox...")
-                    
-                    # 1. Execute the approved container task step
+                if st.button("🚀 Authorize & Execute", type="primary", use_container_width=True):
+                    panel_area.info("⏳ Executing approved script inside Daytona sandbox...")
                     run_agent_stream(None)
                     
-                    # 2. Check if a runtime crash occurred and triggered a self-healing iteration loop
                     new_state = st.session_state.graph_app.get_state(st.session_state.config)
                     if new_state.next and "tools" in new_state.next:
                         st.rerun()
                     else:
                         st.rerun(scope="app")
             with col2:
-                with st.popover("❌ Reject & Send Feedback", use_container_width=True):
+                with st.popover("⛔ Reject / Request Changes", use_container_width=True):
                     unique_input_key = f"feedback_input_{len(st.session_state.graph_messages)}"
-                    feedback = st.text_input("Why are you rejecting this code?", placeholder="e.g., Change the algorithm...", key=unique_input_key)
+                    feedback = st.text_input(
+                        "Provide feedback to the agent:", 
+                        placeholder="e.g., Use an iterative loop instead of recursion.", 
+                        key=unique_input_key
+                    )
                     
-                    if st.button("Submit Feedback", type="primary", use_container_width=True):
-                        rejection_text = f"Rejection details: {feedback}. Please rewrite the solution."
-                        
+                    if st.button("Submit Rejection", type="primary", use_container_width=True):
+                        rejection_text = f"User rejected execution. Instructions: {feedback}"
                         mock_tool_message = ToolMessage(content=rejection_text, tool_call_id=tool_call_id)
+                        
                         st.session_state.graph_app.update_state(
                             st.session_state.config, 
                             {"messages": [mock_tool_message]}, 
                             as_node="tools"
                         )
                         
-                        panel_area.warning("🔄 Rejection sent! Replanning code locally inside chat...")
+                        panel_area.warning("🔄 Rejection logged. Agent is revising plan...")
                         run_agent_stream(None)
                         st.rerun(scope="app")
+            st.markdown('</div>', unsafe_allow_html=True)
 
-# 9. Invoke the Interactive Layout Frame Block
+# 12. Render Controls
 if "graph_app" in st.session_state:
     render_interaction_controls()
+

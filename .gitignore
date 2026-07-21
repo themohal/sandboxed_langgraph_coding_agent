@@ -1,0 +1,28 @@
+# Core Environment Keys (Crucial for API security)
+.env
+.env.*
+
+# Python Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Python Cache & Compiled Files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+
+# Streamlit Local Configuration & State Caches
+.streamlit/config.toml
+.streamlit/secrets.toml
+
+# IDE Configuration folders
+.vscode/
+.idea/
+
+# Operating System Files
+.DS_Store
+Thumbs.db
